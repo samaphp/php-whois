@@ -125,6 +125,88 @@ class Whois
         }
     }
 
+    public function data()
+    {
+      $result = new \stdClass();
+      $result->status = 0;
+      $result->message = 'error';
+      $result->data = [];
+      try {
+        $info = $this->info();
+
+        $not_found_string = FALSE;
+        if (isset($this->servers[$this->TLDs][1])) {
+           $not_found_string = $this->servers[$this->TLDs][1];
+        }
+
+        // Check if this domain is not found (available for registration).
+        if ($not_found_string) {
+          if (strpos($info, $not_found_string) !== false) {
+            $result->status = 2;
+            $result->message = 'not_found';
+          }
+        }
+
+        // Make sure the status is still the default value, and the not_found
+        // string value are exists before extracting the data from info.
+        if (($result->status == 0) && ($not_found_string)) {
+          $exploded_info = explode("\n", $info);
+          $data = [];
+          foreach ($exploded_info as $lineNumber => $line) {
+            if (strpos($line, 'Creation Date:') !== false) {
+              $data['creation_date'] = trim(str_replace('Creation Date:', '', $line));
+            }
+
+            if (strpos($line, 'Registry Expiry Date:') !== false) {
+              $data['expiration_date'] = trim(str_replace('Registry Expiry Date:', '', $line));
+            }
+
+            if (strpos($line, 'Updated Date:') !== false) {
+              $data['update_date'] = trim(str_replace('Updated Date:', '', $line));
+            }
+
+            if (strpos($line, 'Registry Domain ID:') !== false) {
+              $data['registry_domain_id'] = trim(str_replace('Registry Domain ID:', '', $line));
+            }
+
+            if (strpos($line, 'Registrar:') !== false) {
+              if (!isset($data['registrar'])) {
+                $data['registrar'] = [];
+              }
+              $data['registrar']['name'] = trim(str_replace('Registrar:', '', $line));
+            }
+
+            if (strpos($line, 'Registrar IANA ID:') !== false) {
+              if (!isset($data['registrar'])) {
+                $data['registrar'] = [];
+              }
+              $data['registrar']['id'] = trim(str_replace('Registrar IANA ID:', '', $line));
+            }
+
+            if (strpos($line, 'Name Server:') !== false) {
+              if (!isset($data['name_servers'])) {
+                $data['name_servers'] = [];
+              }
+              $data['name_servers'][] = trim(str_replace('Name Server:', '', $line));
+            }
+          }
+
+          // If there are data, we will count this as registered.
+          if (count($data) > 0) {
+            $result->status = 1;
+            $result->message = 'found';
+            $result->data = $data;
+          }
+        }
+
+      } catch (Exception $e) {
+        $result->status = -1;
+        $result->message = 'exception';
+      }
+
+      return $result;
+    }
+
     public function htmlInfo()
     {
         return nl2br($this->info());
